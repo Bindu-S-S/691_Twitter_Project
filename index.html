@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Twitter Sentiment Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        
+        #main-header {
+            background-color: #3498db;
+            color: white;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin: 0;
+        }
+
+        #chart-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 400px;
+            margin: 20px;
+        }
+
+        #sentiment-counts {
+            font-size: 1.5em;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #tweets-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .tweet {
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: white;
+        }
+
+        .tweet-header {
+            font-weight: bold;
+        }
+
+        .tweet-id {
+            color: #555;
+        }
+
+        .tweet-text {
+            margin: 10px 0;
+        }
+
+        .tweet-footer {
+            color: #888;
+        }
+
+        .sentiment-positive {
+            color: #2ecc71;
+        }
+
+        .sentiment-negative {
+            color: #e74c3c;
+        }
+
+        .sentiment-neutral {
+            color: #f1c40f;
+        }
+    </style>
+</head>
+<body>
+    <header id="main-header">
+        <h1>Twitter Sentiment Analysis</h1>
+    </header>
+    <div id="chart-container">
+        <canvas id="sentimentChart" width="400" height="200"></canvas>
+    </div>
+    <div id="sentiment-counts">Total Tweets: 0</div>
+    <div id="tweets-container">
+        <!-- Tweets will be appended here by JavaScript -->
+    </div>
+    <script>
+        // Initialize sentiment counts
+        let totalTweets = 0;
+        const sentimentCounts = {
+            positive: 0,
+            negative: 0,
+            neutral: 0
+        };
+
+        // Initialize the bar chart
+        const ctx = document.getElementById('sentimentChart').getContext('2d');
+        const sentimentChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Positive', 'Negative', 'Neutral'],
+                datasets: [{
+                    label: 'Tweet Sentiment Count',
+                    data: [0, 0, 0], // Initial data
+                    backgroundColor: [
+                        'rgba(75, 192, 192, 0.2)',
+                        'rgba(255, 99, 132, 0.2)',
+                        'rgba(255, 206, 86, 0.2)'
+                    ],
+                    borderColor: [
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(255,99,132,1)',
+                        'rgba(255, 206, 86, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Set up Server-Sent Events
+        const eventSource = new EventSource('/stream');
+        const displayedTweetIds = new Set(); // To keep track of displayed tweet IDs
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            const tweetValue = JSON.parse(data.value);
+
+            // Check if the tweet ID has already been displayed
+            if (!displayedTweetIds.has(tweetValue.Tweet_ID)) {
+                // Add it to the set of displayed IDs
+                displayedTweetIds.add(tweetValue.Tweet_ID);
+                totalTweets++; // Increment total tweets count
+
+                // Update sentiment counts
+                const sentiment = tweetValue.sentiment.toLowerCase();
+                sentimentCounts[sentiment] += 1;
+                
+                // Update the chart
+                sentimentChart.data.datasets[0].data = [
+                    sentimentCounts.positive,
+                    sentimentCounts.negative,
+                    sentimentCounts.neutral
+                ];
+                sentimentChart.update();
+
+                // Update total count text
+                document.getElementById('sentiment-counts').textContent = `Total Tweets: ${totalTweets}`;
+
+                // Create and prepend the new tweet element
+                const tweetElement = document.createElement('div');
+                tweetElement.classList.add('tweet');
+                const sentimentClass = 'sentiment-' + sentiment;
+                const sentimentText = tweetValue.sentiment.charAt(0).toUpperCase() + tweetValue.sentiment.slice(1);
+
+                tweetElement.innerHTML = `
+                    <div class="tweet-header">
+                        ${tweetValue.Username}
+                    </div>
+                    <div class="tweet-id">
+                        Tweet ID: ${tweetValue.Tweet_ID}
+                    </div>
+                    <div class="tweet-text">
+                        ${tweetValue.Text}
+                    </div>
+                    <div class="tweet-footer">
+                        Sentiment: <span class="sentiment ${sentimentClass}">${sentimentText}</span> | Created: ${tweetValue.Timestamp}
+                    </div>
+                `;
+                const container = document.getElementById('tweets-container');
+                container.insertBefore(tweetElement, container.firstChild);
+            }
+        };
+    </script>
+</body>
+</html>
